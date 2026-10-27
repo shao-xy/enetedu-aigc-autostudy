@@ -9,5 +9,6 @@
   "speed": 10,
   "report_interval": 10,
   "chunk_seconds": 100,
+  "settle_wait": 35,
   "dry_run": false
 }

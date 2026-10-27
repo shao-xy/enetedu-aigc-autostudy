@@ -69,6 +69,9 @@ class StudyRunner:
         # 单次心跳的观看增量上限（秒）。服务端对位置跳变有容忍度，
         # 但增量过大时容易整笔被丢，控制在 100 秒左右最稳。
         self.chunk = min(int(config.get("chunk_seconds", 100)), self.interval * self.speed)
+        # 上报后等服务端落库再读状态。实测落库延迟约 27~30 秒，
+        # 取 35 秒留余量，保证读到的状态可靠。
+        self.settle_wait = max(0, int(config.get("settle_wait", 35)))
 
     def log(self, message: str) -> None:
         if self.verbose:
@@ -94,6 +97,13 @@ class StudyRunner:
         self.log(f"  视频 {video_id} 真实时长 {to_mm_ss(media_seconds)}，"
                  f"已看 {to_mm_ss(watched)}，需要 {to_mm_ss(required)}")
 
+        pending = int(required - watched)
+        total_steps = (pending + self.chunk - 1) // self.chunk if pending > 0 else 0
+        if total_steps:
+            self.log(f"  需上报 {total_steps} 笔，每笔 {self.chunk} 秒增量，"
+                     f"预计约 {total_steps * self.interval // self.speed} 秒完成")
+
+        step_no = 0
         while watched < required:
             increment = min(self.chunk, int(required - watched))
             if media_seconds:
@@ -104,8 +114,9 @@ class StudyRunner:
             watched += increment
             self._report(lesson, video_id, file_name, course_id, topic_id,
                          position, position, increment)
-            self.log(f"    已上报 position={to_mm_ss(position)} 累计={to_mm_ss(watched)}"
-                     f" 还差 {to_mm_ss(required - watched)}")
+            step_no += 1
+            self.log(f"    [{step_no}/{total_steps}] 已上报 position={to_mm_ss(position)} "
+                     f"累计={to_mm_ss(watched)} 还差 {to_mm_ss(required - watched)}")
 
     def _report(self, lesson, video_id, file_name, course_id, topic_id,
                 position, max_played, increment) -> None:
@@ -161,11 +172,29 @@ class StudyRunner:
                      f"当前 {course.get('learningStatusName')}")
             self.study_course(cid, topic_id, required)
 
-            # 服务端落库有延迟，等一会儿再读状态
+            # 服务端落库是异步的（实测约 27~30 秒），这里留出余量再读状态。
+            # 等待期间打印进度提示，避免看起来像卡死。
             if not self.dry_run:
-                time.sleep(35)
+                self.log(f"  进度已上报。服务端异步落库需约 30 秒，"
+                         f"等待 {self.settle_wait} 秒后校验状态（不是卡死）...")
+                self._wait_with_progress(self.settle_wait)
             after = [c for c in self.client.topic_courses(topic_id)
                      if str(c.get("courseId")) == cid]
             state = after[0].get("learningStatusName") if after else "?"
             done = after[0].get("learnDuration") if after else "?"
             self.log(f"[结果] {name} -> {state}（已学 {done} 小时）")
+            # 落库慢于等待时间时会读到旧状态，如实提示而不是误报失败
+            if state == "学习中":
+                self.log("  提示：服务端落库有延迟，当前仍显示「学习中」。"
+                         "稍后用 --status 复查即可。")
+
+    def _wait_with_progress(self, seconds: int) -> None:
+        """等待落库，期间输出倒计时提示，避免看起来卡死。"""
+        step = 5
+        remaining = seconds
+        while remaining > 0:
+            chunk = min(step, remaining)
+            time.sleep(chunk)
+            remaining -= chunk
+            if remaining > 0:
+                self.log(f"  ... 等待落库中，剩余 {remaining} 秒")
