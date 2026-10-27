@@ -1,0 +1,13 @@
+{
+  "base_url": "https://aigc.enetedu.com",
+  "tenant_id": "1",
+  "cookie_tenant_id": "100",
+  "access_token": "在此填入浏览器 Cookie 里的 futureTeachersToken",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+  "topic_id": "180200",
+  "course_id": "2110260665179574273",
+  "speed": 10,
+  "report_interval": 10,
+  "chunk_seconds": 100,
+  "dry_run": false
+}
