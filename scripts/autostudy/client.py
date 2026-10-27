@@ -20,7 +20,12 @@ def load_config(path: Path | str = CONFIG_PATH) -> dict[str, Any]:
 
 
 class Client:
-    """平台接口客户端。"""
+    """平台接口客户端。
+
+    认证最小依赖集（实测）：只需要 access_token 一个值，即
+    `Authorization: Bearer <token>` 请求头。Cookie 中的同名值、
+    tenant-id 头、User-Agent 均非必需（带上更接近真实浏览器）。
+    """
 
     def __init__(self, config: dict[str, Any]):
         self.config = config
@@ -34,12 +39,14 @@ class Client:
             "referer": f"{self.base_url}/courses/watch/"
                       f"?courseId={config['course_id']}&topicId={config['topic_id']}",
             "user-agent": config["user_agent"],
-            "tenant-id": str(config["tenant_id"]),
+            "tenant-id": str(config.get("tenant_id", "1")),
         })
+        # 带上同名 Cookie 与真实浏览器保持一致（非必需）
         self.session.cookies.update({
-            "tenantId": str(config["cookie_tenant_id"]),
             "futureTeachersToken": config["access_token"],
         })
+        if config.get("cookie_tenant_id"):
+            self.session.cookies.update({"tenantId": str(config["cookie_tenant_id"])})
 
     # ---------- 基础请求 ----------
 

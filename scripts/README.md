@@ -47,10 +47,20 @@ cp config.example.json config.json
 
 ### 获取 token
 
-登录平台后，浏览器 DevTools → Application → Cookies，复制 `futureTeachersToken` 的值，
-填入 `config.json` 的 `access_token`。
+**只需复制一个值**：登录平台后，浏览器 DevTools → Application → Cookies，
+复制 `futureTeachersToken` 的值，填入 `config.json` 的 `access_token`。
 
-该 token 同时用于 `Authorization: Bearer <token>` 请求头和同名 Cookie。
+实测认证最小依赖集：
+
+| 项 | 必需性 |
+| --- | --- |
+| `Authorization: Bearer <access_token>` | **唯一必需** |
+| Cookie `futureTeachersToken` | 非必需（带上更贴近真实浏览器） |
+| `tenant-id` / `visit-tenant-id` 头 | 非必需 |
+| Cookie `p_h5_u` / `acw_tc` / `selectedCC` / `tenantId` | 无关，CDN 与播放器埋点用 |
+| User-Agent | 非必需 |
+
+Token 过期时接口返回 HTTP 200 + `code=401` + `msg=访问令牌不存在`，脚本会提示。
 过期后重新登录、复制新值即可。
 
 ## 使用
@@ -93,6 +103,7 @@ POST /admin-api/course/learning-detail/create
   （`topic-detail` 里的 `durationTime`，单位小时），与播放位置无关。
 - 服务端**不校验墙钟时间**，但要求单次上报的「位置推进量」与「观看增量」一致
   （位置前进多少，增量就是多少），否则该笔会被整笔丢弃。
+- 单笔观看增量不宜超过 100 秒，超出时丢弃率上升。
 - 服务端**落库是异步的**，约 30 秒延迟后 `treeList` 才能读到新值。脚本刷完一门课后会等 35 秒再校验状态。
 
 其它接口：
@@ -123,3 +134,5 @@ POST /admin-api/course/learning-detail/create
 
 - 脚本只做进度上报，不下载视频、不拉取转写内容。
 - `config.json` 含登录凭据，已在 `.gitignore` 中排除，不要提交。
+- 完整技术档案（接口清单、字段语义、实测证据、反模式清单）见
+  [`../docs/aigc-enetedu-autostudy.md`](../docs/aigc-enetedu-autostudy.md)。

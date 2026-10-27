@@ -9,4 +9,4 @@ venv/
 .tmp/
 
 # 含登录凭据，不入库
-autostudy/config.json
+scripts/autostudy/config.json
