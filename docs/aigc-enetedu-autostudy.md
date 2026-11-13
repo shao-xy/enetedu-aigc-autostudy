@@ -29,6 +29,9 @@
 （视频真实时长 72:05，要求 1.2 学时）实跑后，服务端状态由「学习中」→「已完成」，
 `learningProgress` = 100%，专题已完成数 1 → 2。
 
+**使用门槛**：使用者**只需复制一个 `futureTeachersToken`**。
+专题 id 由 `my-topics` 接口自动推导，课程清单由 `topic-detail` 接口动态读取（详见 §3.1.2）。
+
 ---
 
 ## 2. 认证（最小依赖集已实测）
@@ -105,6 +108,7 @@ Token 通过 `Authorization: Bearer` 头传递；`tenant-id` 固定为 `"1"`，
 | 方法 | 路径 | 用途 | 关键返回 |
 | --- | --- | --- | --- |
 | GET | `/admin-api/system/auth/queryUserInfo` | 校验登录态 | `data.nickname` / `data.mobile` |
+| GET | `/app-api/home/api/future-teacher/course-table/my-topics` | **本账号的专题列表**（自动推导 topicId） | `data.list[]`（见 §3.1.2）、`data.total` |
 | GET | `/app-api/home/api/future-teacher/course-table/topic-detail` | **专题详情 + 课程清单** | `data.courses[]`、`data.completedCourseCount`、`data.totalCourseCount` |
 | GET | `/admin-api/course/learning-detail/treeList` | 课程下视频列表 + 当前进度 | `data[]`（见 §4.3） |
 | GET | `/admin-api/media/meet/get` | 视频真实总时长 | `data.transcription.Transcription.AudioInfo.Duration`（**毫秒**） |
@@ -140,12 +144,50 @@ Token 通过 `Authorization: Bearer` 头传递；`tenant-id` 固定为 `"1"`，
 > ⚠️ `selectionType` 数值**不唯一**：`2` 同时对应「未来教师」和「实验教学」，
 > 需以 `selectionTypeName` 为准。
 
+### 3.1.2 专题 id 可自动推导（只需一个 token）
+
+`my-topics` 接口**仅凭 `access_token` 即可调用**，无需预先知道任何 id，
+返回当前账号能访问的全部专题：
+
+```json
+{
+  "data": {
+    "list": [{
+      "topicId": 180200,
+      "topicName": "理工科专项",
+      "courseCount": 16,
+      "completedCourseCount": 16,
+      "learningProgress": 100.0,
+      "certificateEnabled": true,
+      "certificatePrintable": false,
+      "certificatePrinted": true,
+      "registrationStartTime": "2026-10-01 18:29:18",
+      "registrationEndTime": "2026-11-30 23:59:59",
+      "trainingStartTime": "2026-10-17 18:29:35",
+      "trainingEndTime": "2026-11-30 23:59:59",
+      "canRegister": true,
+      "canStartLearning": true
+    }],
+    "total": 1
+  }
+}
+```
+
+因此**换人使用时只需填 `access_token` 一个值**：
+
+1. 专题：`my-topics` → 只有一个则自动选中；多个则要求 `--topic` 指定。
+2. 课程：`topic-detail` 的 `courses[]` 动态读取，即本账号被勾选的清单。
+
+配置里若残留他人账号的 `topic_id` / `course_id`，脚本会校验权限并自动降级：
+
+- `topic_id` 不在本账号 `my-topics` 列表里 → 提示并改用实际可访问的专题
+- `course_id` 不在该专题的 `courses[]` 里 → 提示并改为刷所有未完成课程
+
 ### 3.2 辅助接口
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
 | GET | `/admin-api/media/online-course/getSimpleCourseInfo` | 单门课程信息（`duration` 学时等） |
-| GET | `/app-api/home/api/future-teacher/course-table/my-topics` | 我的专题列表（含 `completedCourseCount`） |
 | GET | `/admin-api/media/online-course/getUserLearingCoursList` | 我的学习课程 |
 | GET | `/admin-api/media/online-course/getVideoCourseListByTopic` | ⚠️ 非课程清单，见 §3.1.1 |
 
@@ -392,11 +434,13 @@ for each course in topic.courses where learningStatus != 2:
 
 ```bash
 cd scripts/autostudy
+python main.py --topics                # 列出本账号可访问的所有专题
 python main.py --status                # 查看全部课程状态
 python main.py --list                  # 列出专题下所有课程
-python main.py                         # 刷 config.json 指定的课程
+python main.py                         # 刷 config.json 指定的课程（未指定则刷全部未完成课程）
 python main.py --all                   # 刷全部未完成课程
 python main.py --course <courseId>     # 刷指定课程
+python main.py --topic <topicId>       # 账号有多个专题时指定其一
 python main.py --dry-run               # 只打印上报体，不提交
 ```
 
@@ -477,6 +521,47 @@ Python 3.10+ 与 `requests`。未修改全局 Python 环境。
   **位置与增量不满足一致性约束**（位置推进 100 秒但增量口径不匹配），
   属于被丢弃而非状态限制。
 
+### 9.5 专题自动推导验证（2026-11-13）
+
+用新 token 实测 `my-topics`，确认**仅凭 token 即可拿到专题列表**：
+
+```
+$ python main.py --topics
+登录用户：张老师（138****0000）
+当前账号可访问 1 个专题：
+
+  topicId=180200  理工科专项
+    课程 16/16 门已完成，总进度 100.0%，证书可打印=False
+```
+
+把 `config.json` 的 `topic_id` / `course_id` 都清空后：
+
+```
+$ python main.py --status
+登录用户：张老师（138****0000）
+专题 理工科专项（180200）
+课程数 16，已完成 16
+```
+
+即**只填 `access_token` 即可完整运行**。
+
+配置里填入他人账号的 id 时的降级验证（`topic_id=999999`、`course_id=999999`）：
+
+```
+登录用户：张老师（138****0000）
+提示：配置里的 topic_id=999999 本账号无权访问，已自动改用实际可访问的专题。
+专题 理工科专项（180200）
+提示：课程 999999 不在本专题的课程清单里（可能是配置里的示例值），改为刷所有未完成课程。
+提示：未指定课程，改为刷该专题下所有未完成课程。
+专题 180200「理工科专项」共 16 门课程，已完成 16 门
+```
+
+两次降级均给出可读提示且未抛异常。
+
+> 顺带记录：本账号专题已完成 16/16 门，`learningProgress=100%`，
+> `certificateEnabled=true`、`certificatePrinted=true`（证书已打印），
+> 但 `certificatePrintable=false`（当前不可再次打印）。
+
 ---
 
 ## 10. 风险与边界
@@ -496,8 +581,8 @@ Python 3.10+ 与 `requests`。未修改全局 Python 环境。
 
 | 注意项 | 说明 |
 | --- | --- |
+| 使用者只需填一个 token | `config.example.json` 里 `topic_id` / `course_id` 均为空，脚本自动推导（见 §3.1.2）。使用者复制自己的 `futureTeachersToken` 填入 `access_token` 即可 |
 | 不要打包发目录 | 分享者本机的 `scripts/autostudy/config.json` 含**真实 token**，压缩包直发等于泄露凭据。只发仓库链接 |
-| `topic_id` / `course_id` 是快照 | `config.example.json` 里的值来自分享者账号，换人必须改成自己的；课程清单本身脚本动态读取，无需手填 |
 | 仓库可见性 | GitHub 远程仓库当前为 **public**，任何拿到链接的人都能 clone。若不希望公开，需改为 private |
 | 使用性质 | 本脚本用于自动上报学习进度，分发给他人是否合规由使用者自行判断平台研修规定 |
 

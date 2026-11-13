@@ -36,8 +36,10 @@ class Client:
             "authorization": f"Bearer {config['access_token']}",
             "content-type": "application/json",
             "origin": self.base_url,
+            # topicId / courseId 只是 referer 参数，缺失不影响接口调用
             "referer": f"{self.base_url}/courses/watch/"
-                      f"?courseId={config['course_id']}&topicId={config['topic_id']}",
+                      f"?courseId={config.get('course_id', '')}"
+                      f"&topicId={config.get('topic_id', '')}",
             "user-agent": config["user_agent"],
             "tenant-id": str(config.get("tenant_id", "1")),
         })
@@ -75,6 +77,16 @@ class Client:
         """专题（研修班）详情，含课程清单与完成数。"""
         return self.get("/app-api/home/api/future-teacher/course-table/topic-detail",
                         params={"topicId": topic_id})
+
+    def my_topics(self) -> list[dict[str, Any]]:
+        """当前账号能看到的全部专题。
+
+        实测：仅凭 access_token 即可获取，无需知道 topicId。
+        返回项含 topicId / topicName / courseCount / completedCourseCount /
+        learningProgress / certificateEnabled 等。
+        """
+        data = self.get("/app-api/home/api/future-teacher/course-table/my-topics") or {}
+        return data.get("list") or []
 
     def topic_courses(self, topic_id: str) -> list[dict[str, Any]]:
         """专题下全部课程及学习状态。"""

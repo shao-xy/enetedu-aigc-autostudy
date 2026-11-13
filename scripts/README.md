@@ -42,13 +42,18 @@ cp config.example.json config.json
 
 | 字段 | 说明 |
 | --- | --- |
-| `access_token` | 登录后的 access token，见下方「获取 token」 |
-| `topic_id` | 研修班（专题）id，如 `180200` |
-| `course_id` | 要刷的课程 id |
+| `access_token` | 登录后的 access token，**唯一必填项**，见下方「获取 token」 |
+| `topic_id` | 研修班（专题）id。**留空即可**，脚本自动从 `my-topics` 接口推导 |
+| `course_id` | 要刷的课程 id。**留空即可**，默认刷该专题下所有未完成课程 |
 | `speed` | 倍速。位置与累计时长推进的快慢 |
 | `report_interval` | 心跳间隔（秒） |
 | `chunk_seconds` | 单次上报的观看增量上限（秒），默认 100 |
 | `settle_wait` | 上报后等多久读状态（秒），默认 35 |
+
+> **换人使用时只需改 `access_token` 一处。**
+> `topic_id` 和 `course_id` 都是自动推导的：专题从 `my-topics` 接口查，
+> 课程清单从 `topic-detail` 接口动态读取。
+> 即使 config 里留着别人账号的旧值，脚本也会检测到无权访问并自动降级。
 
 ### 获取 token
 
@@ -73,11 +78,13 @@ Token 过期时接口返回 HTTP 200 + `code=401` + `msg=访问令牌不存在`�
 ```bash
 cd scripts/autostudy
 
+python main.py --topics    # 列出本账号可访问的所有专题
 python main.py --status    # 查看所有课程的学习状态
 python main.py --list      # 列出专题下全部课程
-python main.py             # 刷 config.json 里指定的那门课
+python main.py             # 刷 config.json 里指定的那门课（未指定则刷全部未完成课程）
 python main.py --all       # 刷专题下所有未完成课程
 python main.py --course <courseId>   # 刷指定课程
+python main.py --topic <topicId>     # 账号有多个专题时指定其一
 python main.py --dry-run   # 只打印上报内容，不真正提交
 ```
 
@@ -148,20 +155,24 @@ POST /admin-api/course/learning-detail/create
 
 ## 附录：其他老师使用时的配置说明
 
-仓库里的 `config.example.json` 中的 `topic_id` 与 `course_id` 是**原分享者账号的专题快照**，
-直接使用会跑到别人的专题上。使用者必须改两处：
+**只需复制一个 token。** 仓库里的 `config.example.json` 中 `topic_id` 与 `course_id` 都是空的，
+脚本会自动推导：
 
 | 字段 | 怎么填 |
 | --- | --- |
 | `access_token` | 填**自己**账号的 `futureTeachersToken`（浏览器 DevTools → Application → Cookies） |
-| `topic_id` | 填**自己**的研修专题 id。查询方式：登录后打开平台研修页，看浏览器网络请求里 `topic-detail` 的 `topicId` 参数；或调用 `GET /app-api/home/api/future-teacher/course-table/my-topics` 看自己的专题列表 |
-| `course_id` | 想刷单门时填该门课 id；用 `--all` 时可保留任意值，脚本会忽略 |
+| `topic_id` | **留空**。脚本调 `my-topics` 接口拿到本账号的专题；只有一个专题时自动选中，有多个时用 `--topic <topicId>` 指定 |
+| `course_id` | **留空**。默认刷该专题下所有未完成课程；只想刷单门时用 `--course <courseId>` |
 
 课程清单**不需要手填**：脚本每次运行都从 `topic-detail` 动态读取本账号被勾选的课程，
 因此不同账号、不同专题的课程数量与内容不同，脚本都适用。
+
+即使 config 里留着原分享者账号的 `topic_id` / `course_id`（比如从旧配置复制过来），
+脚本也会校验本账号是否有权限访问，无权则自动降级并给出提示，不会报错。
 
 先跑一次确认环境正常：
 
 ```bash
 python main.py --status    # 打印自己的账号昵称与各课程状态
+python main.py --topics   # 看自己有哪些专题
 ```
