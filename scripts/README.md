@@ -6,14 +6,18 @@
 ## 目录结构
 
 ```
-scripts/
-├── .gitignore
-└── autostudy/
-    ├── client.py             # 平台接口封装
-    ├── study.py              # 刷课核心逻辑
-    ├── main.py               # 命令行入口
-    ├── config.example.json   # 配置模板
-    └── config.json           # 实际配置（含 token，已 gitignore）
+仓库根
+├── .gitignore                # 排除含凭据的 config.json
+├── docs/
+│   └── aigc-enetedu-autostudy.md   # 完整技术档案
+└── scripts/
+    ├── README.md
+    └── autostudy/
+        ├── client.py             # 平台接口封装
+        ├── study.py              # 刷课核心逻辑
+        ├── main.py               # 命令行入口
+        ├── config.example.json   # 配置模板
+        └── config.json           # 实际配置（含 token，未入库）
 ```
 
 ## 环境要求
@@ -135,6 +139,29 @@ POST /admin-api/course/learning-detail/create
 ## 说明
 
 - 脚本只做进度上报，不下载视频、不拉取转写内容。
-- `config.json` 含登录凭据，已在 `.gitignore` 中排除，不要提交。
+- `config.json` 含登录凭据，已在 `.gitignore` 中排除，不要提交，也不要把填好 token 的
+  `config.json` 连同目录打包发给别人。
 - 完整技术档案（接口清单、字段语义、实测证据、反模式清单）见
   [`../docs/aigc-enetedu-autostudy.md`](../docs/aigc-enetedu-autostudy.md)。
+
+---
+
+## 附录：其他老师使用时的配置说明
+
+仓库里的 `config.example.json` 中的 `topic_id` 与 `course_id` 是**原分享者账号的专题快照**，
+直接使用会跑到别人的专题上。使用者必须改两处：
+
+| 字段 | 怎么填 |
+| --- | --- |
+| `access_token` | 填**自己**账号的 `futureTeachersToken`（浏览器 DevTools → Application → Cookies） |
+| `topic_id` | 填**自己**的研修专题 id。查询方式：登录后打开平台研修页，看浏览器网络请求里 `topic-detail` 的 `topicId` 参数；或调用 `GET /app-api/home/api/future-teacher/course-table/my-topics` 看自己的专题列表 |
+| `course_id` | 想刷单门时填该门课 id；用 `--all` 时可保留任意值，脚本会忽略 |
+
+课程清单**不需要手填**：脚本每次运行都从 `topic-detail` 动态读取本账号被勾选的课程，
+因此不同账号、不同专题的课程数量与内容不同，脚本都适用。
+
+先跑一次确认环境正常：
+
+```bash
+python main.py --status    # 打印自己的账号昵称与各课程状态
+```

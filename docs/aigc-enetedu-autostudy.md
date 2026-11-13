@@ -374,15 +374,18 @@ for each course in topic.courses where learningStatus != 2:
 ### 8.1 目录
 
 ```
-scripts/
-├── .gitignore              # config.json 含凭据，已排除
-├── README.md               # 快速上手
-└── autostudy/
-    ├── client.py           # 接口封装（Client 类）
-    ├── study.py            # 刷课核心（StudyRunner）
-    ├── main.py             # CLI 入口
-    ├── config.example.json # 配置模板
-    └── config.json         # 实际配置（未入库）
+仓库根
+├── .gitignore                # 排除含凭据的 config.json
+├── docs/
+│   └── aigc-enetedu-autostudy.md
+└── scripts/
+    ├── README.md             # 快速上手
+    └── autostudy/
+        ├── client.py         # 接口封装（Client 类）
+        ├── study.py          # 刷课核心（StudyRunner）
+        ├── main.py           # CLI 入口
+        ├── config.example.json
+        └── config.json       # 实际配置（未入库）
 ```
 
 ### 8.2 命令
@@ -485,6 +488,18 @@ Python 3.10+ 与 `requests`。未修改全局 Python 环境。
 | 账号风险 | 异常高频上报可能触发人工审核。当前节律与真实播放接近，风险较低 |
 | 用途范围 | 仅用于本人账号的学习进度上报，不涉及视频下载、转写抓取或他人账号 |
 | 证书条件 | 本专题 `certificateEnabled=true`；需完成该专题**全部课程**（本次实测为 16 门，数量因专题而异）后才可能满足证书条件（未验证） |
+
+### 10.1 仓库对外分享注意事项
+
+仓库不含任何真实凭据（`config.json` 未入库，全部历史提交中亦无 token 与手机号），
+但把链接分享给其他参训教师前，仍需注意：
+
+| 注意项 | 说明 |
+| --- | --- |
+| 不要打包发目录 | 分享者本机的 `scripts/autostudy/config.json` 含**真实 token**，压缩包直发等于泄露凭据。只发仓库链接 |
+| `topic_id` / `course_id` 是快照 | `config.example.json` 里的值来自分享者账号，换人必须改成自己的；课程清单本身脚本动态读取，无需手填 |
+| 仓库可见性 | GitHub 远程仓库当前为 **public**，任何拿到链接的人都能 clone。若不希望公开，需改为 private |
+| 使用性质 | 本脚本用于自动上报学习进度，分发给他人是否合规由使用者自行判断平台研修规定 |
 
 ---
 
